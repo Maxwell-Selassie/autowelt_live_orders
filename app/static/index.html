@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autowelt — Live Order Simulator</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <p class="eyebrow">AUTOWELT INTERNATIONAL</p>
+            <h1>Live Order Simulator</h1>
+            <p class="subtitle">
+                Generate realistic automotive orders and publish them as live business events.
+            </p>
+        </header>
+
+        <section class="card">
+            <div class="status-row">
+                <span>Source system</span>
+                <strong>FastAPI</strong>
+            </div>
+            <div class="status-row">
+                <span>Event</span>
+                <strong>ORDER_CREATED</strong>
+            </div>
+            <div class="status-row">
+                <span>Destination</span>
+                <strong id="destination">Loading...</strong>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Create an order</h2>
+
+            <form id="order-form">
+                <label>
+                    Customer ID
+                    <input name="customer_id" value="CUS-1001" required>
+                </label>
+
+                <label>
+                    Vehicle ID
+                    <input name="vehicle_id" value="VEH-5001" required>
+                </label>
+
+                <label>
+                    Branch ID
+                    <input name="branch_id" value="BR-DE-BER-01" required>
+                </label>
+
+                <div class="two-col">
+                    <label>
+                        Currency
+                        <input name="currency" value="EUR" maxlength="3" required>
+                    </label>
+
+                    <label>
+                        Amount
+                        <input name="amount" type="number" min="1" step="0.01" value="68500" required>
+                    </label>
+                </div>
+
+                <label>
+                    Quantity
+                    <input name="quantity" type="number" min="1" max="10" value="1" required>
+                </label>
+
+                <button type="submit">Simulate Order</button>
+            </form>
+        </section>
+
+        <section class="card result-card">
+            <div class="result-header">
+                <h2>Latest event</h2>
+                <span id="result-status" class="badge">Waiting</span>
+            </div>
+            <pre id="result">No order generated yet.</pre>
+        </section>
+    </main>
+
+    <script>
+        async function loadHealth() {
+            const response = await fetch("/health");
+            const data = await response.json();
+
+            document.getElementById("destination").textContent =
+                data.kinesis_enabled
+                    ? `Kinesis — ${data.stream}`
+                    : "Local mode — Kinesis disabled";
+        }
+
+        document.getElementById("order-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const form = new FormData(event.target);
+
+            const payload = {
+                customer_id: form.get("customer_id"),
+                vehicle_id: form.get("vehicle_id"),
+                branch_id: form.get("branch_id"),
+                currency: form.get("currency"),
+                amount: Number(form.get("amount")),
+                quantity: Number(form.get("quantity"))
+            };
+
+            const response = await fetch("/api/v1/orders/simulate", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            document.getElementById("result").textContent =
+                JSON.stringify(data, null, 2);
+
+            const badge = document.getElementById("result-status");
+
+            if (response.ok) {
+                badge.textContent = data.delivery.published
+                    ? "Published"
+                    : "Generated locally";
+                badge.className = "badge success";
+            } else {
+                badge.textContent = "Failed";
+                badge.className = "badge error";
+            }
+        });
+
+        loadHealth();
+    </script>
+</body>
+</html>
